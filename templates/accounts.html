@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <style>
+        .sidebar {
+            width: var(--sidebar-width);
+            background-color: #222222;
+            padding-top: 20px;
+            box-shadow: 2px 0 5px rgba(0,0,0,0.5);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .sidebar a {
+            color: var(--text-color);
+            text-decoration: none;
+            padding: 12px 10px;
+            display: block;
+            width: 100%;
+            text-align: left;
+            padding-left: 20px;
+            transition: background-color 0.2s;
+        }
+        .sidebar a:hover, .sidebar a.active {
+            background-color: var(--card-bg);
+        }
+        .main-content {
+            flex-grow: 1;
+            padding: 20px 40px;
+        }
+        .account-card {
+            background-color: var(--card-bg);
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+            border-left: 5px solid var(--accent-color);
+        }
+        .account-name {
+            font-size: 1.4em;
+            margin-bottom: 5px;
+            color: var(--accent-color);
+        }
+        .account-balance {
+            font-size: 2em;
+            font-weight: bold;
+            color: #2ECC71; /* Зеленый */
+        }
+        .account-details {
+            font-size: 0.9em;
+            color: gray;
+            margin-top: 10px;
+        }
+        .btn-action {
+            background-color: #444;
+            color: white;
+            padding: 8px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-top: 10px;
+            margin-right: 10px;
+            transition: background-color 0.3s;
+        }
+        .btn-action:hover {
+            background-color: #555;
+        }
+    </style>
+
+    <div class="sidebar">
+        <div style="height: 50px;"></div>
+        <a href="{{ url_for('dashboard') }}">🏠 Главная</a>
+        <a href="{{ url_for('accounts') }}" class="active">💳 Счета</a>
+        <a href="#">💸 Платежи</a>
+        <a href="{{ url_for('transfer') }}">🔄 Переводы</a>
+        <a href="#">🌟 Бонусы</a>
+        <a href="#">📈 Аналитика</a>
+        <a href="{{ url_for('logout') }}" style="margin-top: auto; color: var(--red-accent);">🚪 Выход</a>
+    </div>
+
+    <div class="main-content">
+        <h1 style="color: var(--text-color); font-size: 1.8em;">Ваши Счета, {{ fio }}</h1>
+
+        {% for account in accounts %}
+        <div class="account-card">
+            <div class="account-name">{{ account.name }}</div>
+            
+            <div class="account-balance">
+                {{ "{:,.2f}".format(account.balance | float) }} {{ account.currency }}
+            </div>
+            
+            <div class="account-details">
+                Номер счета: {{ account.number }}
+            </div>
+            
+            <button class="btn-action">Пополнить</button>
+            <a href="{{ url_for('transfer') }}" class="btn-action">Перевести</a>
+        </div>
+        {% endfor %}
+
+    </div>
+{% endblock %}

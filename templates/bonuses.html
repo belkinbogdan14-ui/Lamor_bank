@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <style>
+        /* Стили для боковой панели и основного контента, как и раньше */
+        .sidebar {
+            width: var(--sidebar-width);
+            background-color: #222222;
+            padding-top: 20px;
+            box-shadow: 2px 0 5px rgba(0,0,0,0.5);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .sidebar a {
+            color: var(--text-color);
+            text-decoration: none;
+            padding: 12px 10px;
+            display: block;
+            width: 100%;
+            text-align: left;
+            padding-left: 20px;
+            transition: background-color 0.2s;
+        }
+        .sidebar a:hover, .sidebar a.active {
+            background-color: var(--card-bg);
+        }
+        .main-content {
+            flex-grow: 1;
+            padding: 20px 40px;
+        }
+        .bonus-card {
+            background-color: var(--card-bg);
+            padding: 30px;
+            border-radius: 8px;
+            margin-bottom: 25px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+            text-align: center;
+        }
+        .bonus-amount {
+            font-size: 3em;
+            font-weight: bold;
+            color: gold; /* Золотой цвет для бонусов */
+            margin-top: 10px;
+            margin-bottom: 5px;
+        }
+        .history-card {
+            background-color: var(--card-bg);
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+        }
+        .history-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid #3c3c3c;
+        }
+        .history-item:last-child {
+            border-bottom: none;
+        }
+        .bonus-plus {
+            color: gold;
+            font-weight: bold;
+        }
+    </style>
+
+    <div class="sidebar">
+        <div style="height: 50px;"></div>
+        <a href="{{ url_for('dashboard') }}">🏠 Главная</a>
+        <a href="{{ url_for('accounts') }}">💳 Счета</a>
+        <a href="{{ url_for('payments') }}">💸 Платежи</a>
+        <a href="{{ url_for('transfer') }}">🔄 Переводы</a>
+        <a href="{{ url_for('bonuses') }}" class="active">🌟 Бонусы</a>
+        <a href="{{ url_for('analytics') }}">📈 Аналитика</a>
+        <a href="{{ url_for('logout') }}" style="margin-top: auto; color: var(--red-accent);">🚪 Выход</a>
+    </div>
+
+    <div class="main-content">
+        <h1 style="color: var(--text-color); font-size: 1.8em;">Ваши Бонусы, {{ fio }}</h1>
+
+        <div class="bonus-card">
+            <span style="color: gray;">Баланс Бонусов (Гамур)</span>
+            <div class="bonus-amount">{{ "{:,.0f}".format(bonus_balance | float) }}</div>
+            <span style="color: gold;">баллов</span>
+            <p style="color: gray; margin-top: 15px;">1 балл = 1 ГМР при списании</p>
+        </div>
+        
+        <h2 style="color: var(--text-color); font-size: 1.4em; margin-top: 30px;">История Начислений</h2>
+        <div class="history-card">
+            {% for item in history %}
+                <div class="history-item">
+                    <span>{{ item.date }} — {{ item.description }}</span>
+                    <span class="bonus-plus">+{{ "{:,.0f}".format(item.amount | float) }}</span>
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+{% endblock %}

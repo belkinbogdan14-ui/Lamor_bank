@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <style>
+        .sidebar {
+            width: var(--sidebar-width);
+            background-color: #222222;
+            padding-top: 20px;
+            box-shadow: 2px 0 5px rgba(0,0,0,0.5);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .sidebar a {
+            color: var(--text-color);
+            text-decoration: none;
+            padding: 12px 10px;
+            display: block;
+            width: 100%;
+            text-align: left;
+            padding-left: 20px;
+            transition: background-color 0.2s;
+        }
+        .sidebar a:hover, .sidebar a.active {
+            background-color: var(--card-bg);
+        }
+        .main-content {
+            flex-grow: 1;
+            padding: 20px 40px;
+        }
+        .placeholder-card {
+            background-color: var(--card-bg);
+            padding: 40px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+            text-align: center;
+            margin-top: 50px;
+        }
+        .placeholder-card h2 {
+            color: var(--accent-color);
+        }
+    </style>
+
+    <div class="sidebar">
+        <div style="height: 50px;"></div>
+        <a href="{{ url_for('dashboard') }}">🏠 Главная</a>
+        <a href="{{ url_for('accounts') }}">💳 Счета</a>
+        <a href="{{ url_for('payments') }}">💸 Платежи</a>
+        <a href="{{ url_for('transfer') }}">🔄 Переводы</a>
+        <a href="{{ url_for('bonuses') }}">🌟 Бонусы</a>
+        <a href="{{ url_for('analytics') }}" class="active">📈 Аналитика</a>
+        <a href="{{ url_for('logout') }}" style="margin-top: auto; color: var(--red-accent);">🚪 Выход</a>
+    </div>
+
+    <div class="main-content">
+        <h1 style="color: var(--text-color); font-size: 1.8em;">Аналитика Расходов, {{ fio }}</h1>
+
+        <div class="placeholder-card">
+            <h2>Раздел в Разработке 🚧</h2>
+            <p style="color: gray; margin-top: 20px;">
+                Здесь будет отображаться подробная статистика ваших доходов и расходов в виде интерактивных графиков.
+            </p>
+            <p style="color: gray;">
+                Следите за обновлениями!
+            </p>
+        </div>
+    </div>
+{% endblock %}

@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="form-container">
+    <h2 style="color: var(--accent-color); text-align: center;">ЛАМОР БАНК</h2>
+    <h3 style="text-align: center; margin-bottom: 20px;">РЕГИСТРАЦИЯ</h3>
+    {% if error %}<p class="error">{{ error }}</p>{% endif %}
+    <form method="POST">
+        <label for="fio" style="color: var(--text-color);">ФИО Клиента:</label>
+        <input type="text" id="fio" name="fio" required>
+
+        <label for="password" style="color: var(--text-color);">Пароль:</label>
+        <input type="password" id="password" name="password" required>
+
+        <label for="balance" style="color: var(--text-color);">Начальный Баланс (Гамур):</label>
+        <input type="text" id="balance" name="balance" value="0.00" required>
+
+        <button type="submit" class="btn">Зарегистрироваться</button>
+    </form>
+</div>
+{% endblock %}

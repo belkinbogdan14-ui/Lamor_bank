@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <style>
+        /* Стили для Главного Экрана */
+        .sidebar {
+            width: var(--sidebar-width);
+            background-color: #222222;
+            padding-top: 20px;
+            box-shadow: 2px 0 5px rgba(0,0,0,0.5);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .sidebar a {
+            color: var(--text-color);
+            text-decoration: none;
+            padding: 12px 10px;
+            display: block;
+            width: 100%;
+            text-align: left;
+            padding-left: 20px;
+            transition: background-color 0.2s;
+        }
+        /* Активируем ссылку, если это текущая страница */
+        .sidebar a:hover, .sidebar a.active {
+            background-color: var(--card-bg);
+        }
+        .main-content {
+            flex-grow: 1;
+            padding: 20px 40px;
+        }
+        .card {
+            background-color: var(--card-bg);
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+        }
+        .balance-amount {
+            font-size: 2.5em;
+            font-weight: bold;
+            margin-top: 5px;
+            color: var(--text-color);
+        }
+        .transaction-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid #3c3c3c;
+        }
+        .transaction-amount {
+            font-weight: bold;
+        }
+        .income { color: #2ECC71; } /* Зеленый */
+        .expense { color: var(--red-accent); } /* Красный */
+        
+        /* Стили для кнопок на Главном экране */
+        .btn-op {
+            display: inline-block; /* Чтобы работал padding и margin */
+            background-color: var(--accent-color);
+            color: white;
+            padding: 8px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            margin-right: 10px;
+            text-decoration: none; /* Убираем подчеркивание у ссылки-кнопки */
+            transition: background-color 0.3s;
+        }
+    </style>
+
+    <div class="sidebar">
+        <div style="height: 50px;"></div>
+        <a href="{{ url_for('dashboard') }}" class="active">🏠 Главная</a>
+        <a href="{{ url_for('accounts') }}">💳 Счета</a>
+        <a href="{{ url_for('payments') }}">💸 Платежи</a>
+        <a href="{{ url_for('transfer') }}">🔄 Переводы</a>
+        <a href="#">🌟 Бонусы</a> <a href="#">📈 Аналитика</a> <a href="{{ url_for('logout') }}" style="margin-top: auto; color: var(--red-accent);">🚪 Выход</a>
+    </div>
+
+    <div class="main-content">
+        <h1 style="color: var(--text-color); font-size: 1.8em;">Добро пожаловать, {{ fio }}!</h1>
+
+        <div class="card">
+            <span style="color: gray;">Общий Баланс (Гамур)</span>
+            <div class="balance-amount">{{ "{:,.2f}".format(balance | float) }} ГМР</div>
+            <div style="margin-top: 15px;">
+                <a href="{{ url_for('transfer') }}" class="btn-op">Перевод</a>
+                <a href="{{ url_for('payments') }}" class="btn-op">Оплата</a>
+                <button class="btn-op">Пополнение</button>
+            </div>
+        </div>
+        
+        <h2 style="color: var(--text-color); font-size: 1.4em; margin-top: 30px;">Недавние Транзакции</h2>
+        <div class="card">
+            {% for tx in transactions %}
+                <div class="transaction-item">
+                    <span>{{ tx.desc }}</span>
+                    <span class="transaction-amount {% if tx.amount < 0 %}expense{% else %}income{% endif %}">
+                        {{ "{:,.2f}".format(tx.amount | float) }} ГМР
+                    </span>
+                </div>
+            {% endfor %}
+            <a href="#" style="color: var(--accent-color); text-align: right; display: block; margin-top: 15px;">Смотреть все...</a>
+        </div>
+    </div>
+{% endblock %}
