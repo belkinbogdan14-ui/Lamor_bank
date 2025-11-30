@@ -2,27 +2,11 @@ from flask import Flask, render_template, request, redirect, url_for, session
 import sqlite3
 import os
 
-# --- 1. Конфигурация ---
-
-# 1. Находим абсолютный путь к папке templates 
-template_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), 'templates'))
-
-# 2. Инициализируем Flask, используя найденный путь
-app = Flask(__name__, template_folder=template_dir) 
-
-# ВАЖНО: Секретный ключ для сессий Flask
-app.secret_key = 'super_secret_key_lamor_bank_v2' 
+# --- 1. Конфигурация и Функции Базы Данных ---
 
 DB_NAME = 'lamor_bank.db'
 
-# >>>>>> КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ ДЛЯ ХОСТИНГА (RENDER/GUNICORN) <<<<<<
-# Инициализация БД ДОЛЖНА происходить сразу после создания объекта 'app', 
-# чтобы гарантировать, что таблица users существует, когда Gunicorn запускает приложение.
-with app.app_context():
-    initialize_db()
-
-# --- 2. Функции Базы Данных ---
-
+# 1.1. ФУНКЦИИ БАЗЫ ДАННЫХ (ОПРЕДЕЛЯЕМ ИХ ПЕРВЫМИ, чтобы избежать NameError)
 def initialize_db():
     """Создает базу данных и таблицу пользователей, если они не существуют."""
     conn = sqlite3.connect(DB_NAME)
@@ -44,7 +28,23 @@ def get_db_connection():
     conn.row_factory = sqlite3.Row
     return conn
 
-# --- 3. Маршруты (Логика приложения) ---
+# 1.2. ИНИЦИАЛИЗАЦИЯ FLASK
+# 1. Находим абсолютный путь к папке templates 
+template_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), 'templates'))
+
+# 2. Инициализируем Flask, используя найденный путь
+app = Flask(__name__, template_folder=template_dir) 
+
+# ВАЖНО: Секретный ключ для сессий Flask
+app.secret_key = 'super_secret_key_lamor_bank_v2' 
+
+# >>>>>> КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ ДЛЯ ХОСТИНГА (RENDER/GUNICORN) <<<<<<
+# Вызываем функцию initialize_db() только после того, как она определена выше.
+with app.app_context():
+    initialize_db()
+
+
+# --- 2. Маршруты (Логика приложения) ---
 
 @app.route('/')
 def index():
@@ -356,7 +356,7 @@ def logout():
     session.pop('balance_gamur', None)
     return redirect(url_for('login'))
 
-# --- 4. Запуск (Оставлен для локального тестирования, Gunicorn его игнорирует) ---
+# --- 3. Запуск (В самом низу, только для локального теста) ---
 
 if __name__ == '__main__':
     # Если запускаем локально, запускаем сервер Flask
