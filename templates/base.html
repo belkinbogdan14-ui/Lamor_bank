@@ -138,11 +138,11 @@
             <a href="{{ url_for('logout') }}" style="margin-top: auto; color: var(--red-accent);">🚪 Выход</a>
         </div>
         <div class="main-content" style="margin-left: var(--sidebar-width);">
-             {% block content %}{% endblock %}
+             {% block content %}{% endblock %} 
         </div>
     {% else %}
         <div class="auth-layout">
-             {% block content %}{% endblock %}
+             {% block content %}{% endblock %} 
         </div>
     {% endif %}
 
