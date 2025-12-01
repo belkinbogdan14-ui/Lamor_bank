@@ -1,15 +1,13 @@
 from flask import Flask, render_template, request, redirect, url_for, session
 import os
 import psycopg2 
-import psycopg2.extras # Для получения результатов в виде словарей
+import psycopg2.extras 
 from dotenv import load_dotenv 
 
 # --- 1. Конфигурация и Функции Базы Данных ---
 
-# Загружаем переменные окружения (работает только локально)
 load_dotenv() 
 
-# Получаем URL для подключения к БД из переменной окружения
 DATABASE_URL = os.environ.get('DATABASE_URL') 
 if not DATABASE_URL:
     print("Ошибка: Переменная DATABASE_URL не найдена. Установите ее в настройках Render.")
@@ -46,7 +44,6 @@ template_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), 'template
 app = Flask(__name__, template_folder=template_dir) 
 app.secret_key = 'super_secret_key_lamor_bank_v2' 
 
-# Гарантируем инициализацию БД при запуске приложения Gunicorn
 with app.app_context():
     initialize_db()
 
@@ -65,9 +62,19 @@ def index():
     conn.close()
 
     if user_count == 0:
+        # Если нет пользователей, перенаправляем на регистрацию
         return redirect(url_for('register'))
     else:
-        return redirect(url_for('login'))
+        # Если пользователи ЕСТЬ, перенаправляем на страницу приветствия (WELCOME)
+        return redirect(url_for('welcome'))
+
+@app.route('/welcome')
+def welcome():
+    # Если пользователь уже авторизован, ему не нужно видеть страницу приветствия
+    if 'user_fio' in session:
+        return redirect(url_for('dashboard'))
+        
+    return render_template('welcome.html')
 
 
 @app.route('/register', methods=['GET', 'POST'])
@@ -110,6 +117,8 @@ def login():
         
         conn = get_db_connection()
         cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+        
+        # Вход только по паролю (как вы просили)
         cursor.execute(
             "SELECT fio, balance_gamur FROM users WHERE password = %s", (password,)
         )
@@ -362,4 +371,6 @@ def logout():
 # --- 3. Запуск (В самом низу, только для локального теста) ---
 
 if __name__ == '__main__':
+    # ВАЖНО: При локальном тестировании убедитесь, что у вас есть файл .env 
+    # с DATABASE_URL, иначе приложение не запустится.
     app.run(debug=True)
