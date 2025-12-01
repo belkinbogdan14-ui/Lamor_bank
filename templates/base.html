@@ -3,148 +3,64 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ламор Банк</title>
-    <style>
-        /* Темная тема и общие стили */
-        :root {
-            --dark-bg: #1A1A1A;
-            --card-bg: #2C2C2C;
-            --text-color: #FFFFFF;
-            --accent-color: #007BFF;
-            --red-accent: #E53935;
-            --sidebar-width: 180px;
-        }
-        body {
-            font-family: Arial, sans-serif;
-            background-color: var(--dark-bg);
-            color: var(--text-color);
-            margin: 0;
-            padding: 0;
-            display: flex;
-            min-height: 100vh;
-        }
-        
-        /* === Стили для страниц авторизации/регистрации (полный экран) === */
-        .auth-layout {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            width: 100%;
-        }
-        .form-container {
-            background-color: var(--card-bg);
-            padding: 40px;
-            border-radius: 8px;
-            max-width: 400px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
-        }
-        input[type="text"], input[type="password"], input[type="number"] {
-            width: calc(100% - 20px);
-            padding: 10px;
-            margin: 10px 0;
-            border: 1px solid #444;
-            border-radius: 4px;
-            background-color: #444;
-            color: var(--text-color);
-        }
-        .btn {
-            background-color: var(--accent-color);
-            color: white;
-            padding: 10px 15px;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-weight: bold;
-            margin-top: 10px;
-            width: 100%;
-            transition: background-color 0.3s;
-        }
-        .btn:hover {
-            background-color: #0056b3;
-        }
-        .error {
-            color: var(--red-accent);
-            text-align: center;
-            margin-bottom: 10px;
-        }
-        
-        /* === Стили для основного контента (Сайдбар и Внутренние страницы) === */
-        .sidebar {
-            width: var(--sidebar-width);
-            background-color: #222222;
-            padding-top: 20px;
-            box-shadow: 2px 0 5px rgba(0,0,0,0.5);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            position: fixed; 
-            height: 100%;
-            z-index: 10;
-        }
-        .sidebar a {
-            color: var(--text-color);
-            text-decoration: none;
-            padding: 12px 10px;
-            display: block;
-            width: 100%;
-            text-align: left;
-            padding-left: 20px;
-            transition: background-color 0.2s;
-        }
-        .sidebar a:hover, .sidebar a.active {
-            background-color: var(--card-bg);
-        }
-        .main-content {
-            flex-grow: 1;
-            padding: 20px 40px;
-            margin-left: 0; 
-            width: 100%;
-        }
-        
-        /* Стили, общие для всех внутренних страниц */
-        .card {
-            background-color: var(--card-bg);
-            padding: 20px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
-        }
-        .btn-op {
-            display: inline-block; 
-            background-color: var(--accent-color);
-            color: white;
-            padding: 8px 15px;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-weight: bold;
-            margin-right: 10px;
-            text-decoration: none; 
-            transition: background-color 0.3s;
-        }
-        
-    </style>
+    <title>Lamor Bank - {% block title %}Ваш банк{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon">
 </head>
 <body>
+
     {% if 'user_fio' in session and request.endpoint not in ['login', 'register', 'welcome'] %}
         <div class="sidebar">
-            <div style="height: 50px;"></div>
-            <a href="{{ url_for('dashboard') }}" class="{% if request.endpoint == 'dashboard' %}active{% endif %}">🏠 Главная</a>
-            <a href="{{ url_for('accounts') }}" class="{% if request.endpoint == 'accounts' %}active{% endif %}">💳 Счета</a>
-            <a href="{{ url_for('payments') }}" class="{% if request.endpoint == 'payments' %}active{% endif %}">💸 Платежи</a>
-            <a href="{{ url_for('transfer') }}" class="{% if request.endpoint == 'transfer' %}active{% endif %}">🔄 Переводы</a>
-            <a href="{{ url_for('bonuses') }}">🌟 Бонусы</a> 
-            <a href="{{ url_for('analytics') }}">📈 Аналитика</a> 
-            <a href="{{ url_for('logout') }}" style="margin-top: auto; color: var(--red-accent);">🚪 Выход</a>
+            <div class="logo">
+                <i class="fa-solid fa-gem"></i> Lamor Bank
+            </div>
+            <nav class="menu">
+                <a href="{{ url_for('dashboard') }}" class="{% if request.endpoint == 'dashboard' %}active{% endif %}">
+                    <i class="fa-solid fa-house"></i> Главная
+                </a>
+                <a href="{{ url_for('accounts') }}" class="{% if request.endpoint == 'accounts' %}active{% endif %}">
+                    <i class="fa-solid fa-wallet"></i> Счета
+                </a>
+                <a href="{{ url_for('deposit') }}" class="{% if request.endpoint == 'deposit' %}active{% endif %}">
+                    <i class="fa-solid fa-money-check-dollar"></i> Пополнение
+                </a>
+                <a href="{{ url_for('payments') }}" class="{% if request.endpoint == 'payments' %}active{% endif %}">
+                    <i class="fa-solid fa-arrow-up-right-from-square"></i> Платежи
+                </a>
+                <a href="{{ url_for('transfer') }}" class="{% if request.endpoint == 'transfer' %}active{% endif %}">
+                    <i class="fa-solid fa-exchange-alt"></i> Переводы
+                </a>
+                <a href="{{ url_for('bonuses') }}" class="{% if request.endpoint == 'bonuses' %}active{% endif %}">
+                    <i class="fa-solid fa-star"></i> Бонусы
+                </a>
+                 <a href="{{ url_for('analytics') }}" class="{% if request.endpoint == 'analytics' %}active{% endif %}">
+                    <i class="fa-solid fa-chart-pie"></i> Аналитика
+                </a>
+            </nav>
+            <div class="profile-area">
+                <div class="user-info">
+                    <span class="user-name">{{ session.get('user_fio', 'Клиент').split()[0] }}</span>
+                    <span class="balance-gamur">{{ "{:,.2f} ГМР".format(session.get('balance_gamur', 0.00)|float) }}</span>
+                </div>
+                <a href="{{ url_for('logout') }}" class="logout-btn">
+                    <i class="fa-solid fa-sign-out-alt"></i> Выход
+                </a>
+            </div>
         </div>
-        <div class="main-content" style="margin-left: var(--sidebar-width);">
-             {% block content %}{% endblock %} 
+
+        <div class="main-content" style="margin-left: 250px;">
+             {% block content %}{% endblock %}
         </div>
+
     {% else %}
+
         <div class="auth-layout">
-             {% block content %}{% endblock %} 
+             {% block content %}{% endblock %}
         </div>
+
     {% endif %}
 
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
 </body>
 </html>
