@@ -4,20 +4,29 @@ import psycopg2
 import psycopg2.extras 
 from dotenv import load_dotenv 
 
-# --- 1. Конфигурация и Функции Базы Данных ---
+# --- 1. Конфигурация и Инициализация Flask ---
 
 # Загрузка переменных окружения (для локального запуска)
 load_dotenv() 
 
-# Получение URL базы данных из переменных окружения Render
 DATABASE_URL = os.environ.get('DATABASE_URL') 
 if not DATABASE_URL:
-    # Используйте заглушку или локальную БД, если не на Render
-    print("ВНИМАНИЕ: Переменная DATABASE_URL не найдена. Приложение может не работать на Render.")
+    print("ВНИМАНИЕ: Переменная DATABASE_URL не найдена. Установите ее в настройках Render.")
+
+# Инициализация Flask ДО любой функции, использующей @app
+template_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), 'templates'))
+app = Flask(__name__, template_folder=template_dir) 
+app.secret_key = os.environ.get('SECRET_KEY', 'default_secret_key_v3')
+
+# --- 2. Функции Базы Данных ---
 
 def get_db_connection():
     """Устанавливает соединение с БД PostgreSQL и сохраняет его в g."""
     if 'db' not in g:
+        # Убедитесь, что DATABASE_URL существует перед подключением
+        if not DATABASE_URL:
+             raise Exception("DATABASE_URL не установлен.")
+             
         g.db = psycopg2.connect(DATABASE_URL)
     return g.db
 
@@ -32,7 +41,7 @@ def initialize_db():
     """Создает таблицы users и transactions."""
     conn = None
     try:
-        conn = psycopg2.connect(DATABASE_URL)
+        conn = get_db_connection()
         cursor = conn.cursor()
         
         # Создание таблицы users
@@ -58,20 +67,16 @@ def initialize_db():
         
         conn.commit()
     except Exception as e:
+        # Эта ошибка будет видна при первом запуске, если БД недоступна
         print(f"Ошибка инициализации БД: {e}")
     finally:
-        if conn:
-            conn.close()
-
-# Инициализация Flask
-template_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), 'templates'))
-app = Flask(__name__, template_folder=template_dir) 
-app.secret_key = os.environ.get('SECRET_KEY', 'default_secret_key_v3') # Используйте переменную окружения
+        # conn.close() не требуется здесь, если используем g, но оставим для initialize_db
+        pass 
 
 with app.app_context():
     initialize_db()
 
-# --- 2. Маршруты (Логика приложения) ---
+# --- 3. Маршруты (Логика приложения) ---
 
 @app.route('/')
 def index():
@@ -83,7 +88,6 @@ def index():
     cursor = conn.cursor()
     cursor.execute("SELECT COUNT(*) FROM users")
     user_count = cursor.fetchone()[0]
-    # conn.close() -- закрывается через @app.teardown_appcontext
 
     if user_count == 0:
         return redirect(url_for('register'))
@@ -124,7 +128,7 @@ def register():
         cursor = conn.cursor()
         
         try:
-            # СОХРАНЕНИЕ БАЛАНСА В БД (ИСПРАВЛЕНО: balance передается как число)
+            # СОХРАНЕНИЕ БАЛАНСА В БД
             cursor.execute(
                 "INSERT INTO users (fio, password, balance_gamur) VALUES (%s, %s, %s)",
                 (fio, password, balance)
@@ -157,7 +161,6 @@ def login():
         conn = get_db_connection()
         cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
         
-        # Вход по паролю (как в вашем примере)
         cursor.execute(
             "SELECT fio, balance_gamur FROM users WHERE password = %s", (password,)
         )
@@ -214,7 +217,7 @@ def dashboard():
         ]
 
     return render_template('dashboard.html', 
-                           fio=user_fio.split()[0], # Передаем только имя
+                           fio=user_fio.split()[0], 
                            balance=balance, 
                            transactions=transactions)
 
@@ -508,7 +511,5 @@ def logout():
     session.pop('balance_gamur', None)
     return redirect(url_for('login'))
 
-# Главная точка входа
 if __name__ == '__main__':
-    # ВНИМАНИЕ: Для запуска на Render используйте gunicorn app:app
     app.run(debug=True)
