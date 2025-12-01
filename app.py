@@ -19,11 +19,13 @@ def get_db_connection():
     return conn
 
 def initialize_db():
-    """Создает таблицу пользователей в PostgreSQL, если она не существует."""
+    """Создает таблицы users и transactions в PostgreSQL, если они не существуют."""
     conn = None
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
+        
+        # 1. Таблица Пользователей (users)
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS users (
                 id SERIAL PRIMARY KEY,
@@ -32,6 +34,18 @@ def initialize_db():
                 balance_gamur REAL DEFAULT 0.00
             )
         """)
+
+        # 2. НОВАЯ Таблица Транзакций (transactions)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS transactions (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER REFERENCES users(id),
+                description TEXT NOT NULL,
+                amount REAL NOT NULL,
+                transaction_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
         conn.commit()
     except Exception as e:
         print(f"Ошибка инициализации БД: {e}")
@@ -146,21 +160,38 @@ def dashboard():
     
     conn = get_db_connection()
     cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
-    cursor.execute(
-        "SELECT balance_gamur FROM users WHERE fio = %s", (user_fio,)
-    )
-    current_balance_row = cursor.fetchone()
-    conn.close()
     
-    balance = current_balance_row['balance_gamur'] if current_balance_row else 0.00
+    # Получение баланса
+    cursor.execute(
+        "SELECT id, balance_gamur FROM users WHERE fio = %s", (user_fio,)
+    )
+    user_data = cursor.fetchone()
+    
+    balance = user_data['balance_gamur'] if user_data else 0.00
     session['balance_gamur'] = balance
 
-    transactions = [
-        {"desc": "Пополнение ЗП", "amount": 450000},
-        {"desc": "Перевод на Счет N", "amount": -12000},
-        {"desc": "Оплата мобильной связи", "amount": -850},
-        {"desc": "Перевод от Петрова", "amount": 10000},
-    ]
+    transactions = []
+    
+    if user_data:
+        user_id = user_data['id']
+        
+        # НОВАЯ ЛОГИКА: Извлечение реальных транзакций из БД
+        cursor.execute("""
+            SELECT description, amount 
+            FROM transactions 
+            WHERE user_id = %s 
+            ORDER BY transaction_date DESC 
+            LIMIT 10
+        """, (user_id,))
+        transactions_raw = cursor.fetchall()
+        
+        # Преобразование данных для шаблона
+        transactions = [
+            {"desc": row['description'], "amount": row['amount']} 
+            for row in transactions_raw
+        ]
+
+    conn.close()
 
     return render_template('dashboard.html', 
                            fio=user_fio.split()[0], 
@@ -223,10 +254,20 @@ def deposit():
                 error = "Сумма пополнения должна быть положительной."
             else:
                 new_balance = current_balance + amount
+                
+                # 1. Обновление баланса
                 cursor.execute(
                     "UPDATE users SET balance_gamur = %s WHERE id = %s", 
                     (new_balance, user['id'])
                 )
+                
+                # 2. ЗАПИСЬ ТРАНЗАКЦИИ
+                description = f"Пополнение счета на {amount:,.2f} ГМР"
+                cursor.execute(
+                    "INSERT INTO transactions (user_id, description, amount) VALUES (%s, %s, %s)",
+                    (user['id'], description, amount)
+                )
+                
                 conn.commit()
                 
                 session['balance_gamur'] = new_balance
@@ -256,7 +297,7 @@ def payments():
     conn_check = get_db_connection()
     cursor_check = conn_check.cursor(cursor_factory=psycopg2.extras.DictCursor)
     cursor_check.execute(
-        "SELECT balance_gamur FROM users WHERE fio = %s", (user_fio,)
+        "SELECT id, balance_gamur FROM users WHERE fio = %s", (user_fio,)
     )
     user_data = cursor_check.fetchone()
     conn_check.close()
@@ -287,9 +328,19 @@ def payments():
                 
                 if user:
                     new_balance = user['balance_gamur'] - amount
+                    
+                    # 1. Обновление баланса
                     cursor.execute(
                         "UPDATE users SET balance_gamur = %s WHERE id = %s", 
                         (new_balance, user['id'])
+                    )
+                    
+                    # 2. ЗАПИСЬ ТРАНЗАКЦИИ (с отрицательным значением)
+                    transaction_amount = -amount
+                    description = f"Оплата мобильной связи ({phone_number})"
+                    cursor.execute(
+                        "INSERT INTO transactions (user_id, description, amount) VALUES (%s, %s, %s)",
+                        (user['id'], description, transaction_amount)
                     )
                     
                     conn.commit()
@@ -336,13 +387,15 @@ def transfer():
                 conn = get_db_connection()
                 cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
                 
+                # 1. Находим отправителя
                 cursor.execute(
                     "SELECT id, balance_gamur FROM users WHERE fio = %s", (user_fio,)
                 )
                 sender = cursor.fetchone()
                 
+                # 2. Находим получателя
                 cursor.execute(
-                    "SELECT id, balance_gamur FROM users WHERE fio = %s", (recipient_fio,)
+                    "SELECT id, balance_gamur, fio FROM users WHERE fio = %s", (recipient_fio,)
                 )
                 recipient = cursor.fetchone()
 
@@ -351,16 +404,30 @@ def transfer():
                 elif sender['balance_gamur'] < amount:
                     error = "Недостаточно средств на счете Гамур."
                 else:
+                    # 3. Обновление баланса Отправителя
                     new_sender_balance = sender['balance_gamur'] - amount
                     cursor.execute(
                         "UPDATE users SET balance_gamur = %s WHERE id = %s", 
                         (new_sender_balance, sender['id'])
                     )
                     
+                    # 4. Обновление баланса Получателя
                     new_recipient_balance = recipient['balance_gamur'] + amount
                     cursor.execute(
                         "UPDATE users SET balance_gamur = %s WHERE id = %s", 
                         (new_recipient_balance, recipient['id'])
+                    )
+
+                    # 5. ЗАПИСЬ ТРАНЗАКЦИИ для ОТПРАВИТЕЛЯ
+                    cursor.execute(
+                        "INSERT INTO transactions (user_id, description, amount) VALUES (%s, %s, %s)",
+                        (sender['id'], f"Перевод пользователю {recipient_fio}", -amount)
+                    )
+
+                    # 6. ЗАПИСЬ ТРАНЗАКЦИИ для ПОЛУЧАТЕЛЯ
+                    cursor.execute(
+                        "INSERT INTO transactions (user_id, description, amount) VALUES (%s, %s, %s)",
+                        (recipient['id'], f"Перевод от {user_fio}", amount)
                     )
                     
                     conn.commit()
