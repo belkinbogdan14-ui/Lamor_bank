@@ -1,45 +1,52 @@
 from flask import Flask, render_template, request, redirect, url_for, session
-import sqlite3
 import os
+import psycopg2 
+import psycopg2.extras # Для получения результатов в виде словарей
+from dotenv import load_dotenv 
 
 # --- 1. Конфигурация и Функции Базы Данных ---
 
-DB_NAME = 'lamor_bank.db'
+# Загружаем переменные окружения (работает только локально)
+load_dotenv() 
 
-# 1.1. ФУНКЦИИ БАЗЫ ДАННЫХ (ОПРЕДЕЛЯЕМ ИХ ПЕРВЫМИ, чтобы избежать NameError)
-def initialize_db():
-    """Создает базу данных и таблицу пользователей, если они не существуют."""
-    conn = sqlite3.connect(DB_NAME)
-    cursor = conn.cursor()
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY,
-            fio TEXT NOT NULL,
-            password TEXT NOT NULL,
-            balance_gamur REAL DEFAULT 0.00
-        )
-    """)
-    conn.commit()
-    conn.close()
+# Получаем URL для подключения к БД из переменной окружения
+DATABASE_URL = os.environ.get('DATABASE_URL') 
+if not DATABASE_URL:
+    print("Ошибка: Переменная DATABASE_URL не найдена. Установите ее в настройках Render.")
 
+# 1.1. ФУНКЦИИ БАЗЫ ДАННЫХ
 def get_db_connection():
-    """Устанавливает соединение с БД и настраивает его для получения результатов как словарей."""
-    conn = sqlite3.connect(DB_NAME)
-    conn.row_factory = sqlite3.Row
+    """Устанавливает соединение с БД PostgreSQL."""
+    conn = psycopg2.connect(DATABASE_URL)
     return conn
 
+def initialize_db():
+    """Создает таблицу пользователей в PostgreSQL, если она не существует."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                id SERIAL PRIMARY KEY,
+                fio TEXT NOT NULL,
+                password TEXT NOT NULL,
+                balance_gamur REAL DEFAULT 0.00
+            )
+        """)
+        conn.commit()
+    except Exception as e:
+        print(f"Ошибка инициализации БД: {e}")
+    finally:
+        if conn:
+            conn.close()
+
 # 1.2. ИНИЦИАЛИЗАЦИЯ FLASK
-# 1. Находим абсолютный путь к папке templates 
 template_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), 'templates'))
-
-# 2. Инициализируем Flask, используя найденный путь
 app = Flask(__name__, template_folder=template_dir) 
-
-# ВАЖНО: Секретный ключ для сессий Flask
 app.secret_key = 'super_secret_key_lamor_bank_v2' 
 
-# >>>>>> КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ ДЛЯ ХОСТИНГА (RENDER/GUNICORN) <<<<<<
-# Вызываем функцию initialize_db() только после того, как она определена выше.
+# Гарантируем инициализацию БД при запуске приложения Gunicorn
 with app.app_context():
     initialize_db()
 
@@ -48,12 +55,13 @@ with app.app_context():
 
 @app.route('/')
 def index():
-    """Перенаправляет пользователя на Главную страницу, Вход или Регистрацию."""
     if 'user_fio' in session:
         return redirect(url_for('dashboard'))
 
     conn = get_db_connection()
-    user_count = conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]
+    cursor = conn.cursor()
+    cursor.execute("SELECT COUNT(*) FROM users")
+    user_count = cursor.fetchone()[0]
     conn.close()
 
     if user_count == 0:
@@ -64,8 +72,6 @@ def index():
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
-    """Маршрут для регистрации."""
-    
     if request.method == 'POST':
         fio = request.form['fio']
         password = request.form['password']
@@ -82,8 +88,9 @@ def register():
             return render_template('register.html', error="Баланс должен быть числом.")
 
         conn = get_db_connection()
-        conn.execute(
-            "INSERT INTO users (fio, password, balance_gamur) VALUES (?, ?, ?)",
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT INTO users (fio, password, balance_gamur) VALUES (%s, %s, %s)",
             (fio, password, balance)
         )
         conn.commit()
@@ -98,19 +105,20 @@ def register():
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    """Маршрут для авторизации."""
     if request.method == 'POST':
         password = request.form['password']
         
         conn = get_db_connection()
-        user = conn.execute(
-            "SELECT fio, balance_gamur FROM users WHERE password = ?", (password,)
-        ).fetchone()
+        cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+        cursor.execute(
+            "SELECT fio, balance_gamur FROM users WHERE password = %s", (password,)
+        )
+        user = cursor.fetchone()
         conn.close()
 
         if user:
             session['user_fio'] = user['fio']
-            session['balance_gamur'] = user['balance_gamur']
+            session['balance_gamur'] = user['balance_gamur'] 
             return redirect(url_for('dashboard'))
         else:
             return render_template('login.html', error="Неверный пароль.")
@@ -120,17 +128,17 @@ def login():
 
 @app.route('/dashboard')
 def dashboard():
-    """Главный экран (Личный кабинет)"""
     if 'user_fio' not in session:
         return redirect(url_for('login'))
         
     user_fio = session.get('user_fio', "Клиент").split()[0]
     
-    # Обновляем баланс в сессии (актуальный баланс)
     conn = get_db_connection()
-    current_balance_row = conn.execute(
-        "SELECT balance_gamur FROM users WHERE fio = ?", (session['user_fio'],)
-    ).fetchone()
+    cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+    cursor.execute(
+        "SELECT balance_gamur FROM users WHERE fio = %s", (session['user_fio'],)
+    )
+    current_balance_row = cursor.fetchone()
     conn.close()
     
     if current_balance_row:
@@ -139,7 +147,7 @@ def dashboard():
     else:
         balance = session.get('balance_gamur', 0.00)
 
-    # ФИКЦИВНЫЕ ДАННЫЕ для транзакций
+    # ФИКЦИВНЫЕ ДАННЫЕ
     transactions = [
         {"desc": "Пополнение ЗП", "amount": 450000},
         {"desc": "Перевод на Счет N", "amount": -12000},
@@ -155,7 +163,6 @@ def dashboard():
 
 @app.route('/accounts')
 def accounts():
-    """Маршрут для страницы счетов."""
     if 'user_fio' not in session:
         return redirect(url_for('login'))
         
@@ -176,17 +183,17 @@ def accounts():
 
 @app.route('/payments', methods=['GET', 'POST'])
 def payments():
-    """Маршрут для осуществления платежей (например, мобильная связь)."""
     if 'user_fio' not in session:
         return redirect(url_for('login'))
 
     user_fio = session.get('user_fio')
     
-    # Получаем актуальный баланс из базы данных
     conn_check = get_db_connection()
-    user_data = conn_check.execute(
-        "SELECT balance_gamur FROM users WHERE fio = ?", (user_fio,)
-    ).fetchone()
+    cursor_check = conn_check.cursor(cursor_factory=psycopg2.extras.DictCursor)
+    cursor_check.execute(
+        "SELECT balance_gamur FROM users WHERE fio = %s", (user_fio,)
+    )
+    user_data = cursor_check.fetchone()
     conn_check.close()
     
     current_balance = user_data['balance_gamur'] if user_data else 0.00
@@ -199,7 +206,6 @@ def payments():
         phone_number = request.form['phone_number'].strip()
         amount_str = request.form['amount'].strip()
         
-        # Улучшенная проверка номера телефона
         if not phone_number.isdigit() or len(phone_number) < 7:
              error = "Пожалуйста, введите корректный номер телефона (минимум 7 цифр, только цифры)."
         
@@ -211,27 +217,25 @@ def payments():
             elif current_balance < amount:
                 error = "Недостаточно средств на счете Гамур для этого платежа."
             
-            # Если ошибок нет, выполняем платеж
             if not error:
                 conn = get_db_connection()
+                cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
                 
-                # Получаем ID пользователя и баланс для обновления
-                user = conn.execute(
-                    "SELECT id, balance_gamur FROM users WHERE fio = ?", (user_fio,)
-                ).fetchone()
+                cursor.execute(
+                    "SELECT id, balance_gamur FROM users WHERE fio = %s", (user_fio,)
+                )
+                user = cursor.fetchone()
                 
                 if user:
-                    # Обновляем баланс
                     new_balance = user['balance_gamur'] - amount
-                    conn.execute(
-                        "UPDATE users SET balance_gamur = ? WHERE id = ?", 
+                    cursor.execute(
+                        "UPDATE users SET balance_gamur = %s WHERE id = %s", 
                         (new_balance, user['id'])
                     )
                     
                     conn.commit()
                     conn.close()
                     
-                    # Обновляем сессию и текущий баланс для отображения
                     session['balance_gamur'] = new_balance
                     current_balance = new_balance
                     message = f"Оплата мобильной связи ({phone_number}) на сумму {amount:,.2f} ГМР успешно выполнена!"
@@ -250,7 +254,6 @@ def payments():
 
 @app.route('/transfer', methods=['GET', 'POST'])
 def transfer():
-    """Маршрут для осуществления перевода средств."""
     if 'user_fio' not in session:
         return redirect(url_for('login'))
 
@@ -271,14 +274,17 @@ def transfer():
                 error = "Нельзя перевести деньги самому себе."
             else:
                 conn = get_db_connection()
+                cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
                 
-                sender = conn.execute(
-                    "SELECT id, balance_gamur FROM users WHERE fio = ?", (user_fio,)
-                ).fetchone()
+                cursor.execute(
+                    "SELECT id, balance_gamur FROM users WHERE fio = %s", (user_fio,)
+                )
+                sender = cursor.fetchone()
                 
-                recipient = conn.execute(
-                    "SELECT id, balance_gamur FROM users WHERE fio = ?", (recipient_fio,)
-                ).fetchone()
+                cursor.execute(
+                    "SELECT id, balance_gamur FROM users WHERE fio = %s", (recipient_fio,)
+                )
+                recipient = cursor.fetchone()
 
                 if not recipient:
                     error = f"Получатель с ФИО '{recipient_fio}' не найден."
@@ -286,14 +292,14 @@ def transfer():
                     error = "Недостаточно средств на счете Гамур."
                 else:
                     new_sender_balance = sender['balance_gamur'] - amount
-                    conn.execute(
-                        "UPDATE users SET balance_gamur = ? WHERE id = ?", 
+                    cursor.execute(
+                        "UPDATE users SET balance_gamur = %s WHERE id = %s", 
                         (new_sender_balance, sender['id'])
                     )
                     
                     new_recipient_balance = recipient['balance_gamur'] + amount
-                    conn.execute(
-                        "UPDATE users SET balance_gamur = ? WHERE id = ?", 
+                    cursor.execute(
+                        "UPDATE users SET balance_gamur = %s WHERE id = %s", 
                         (new_recipient_balance, recipient['id'])
                     )
                     
@@ -316,13 +322,12 @@ def transfer():
 
 @app.route('/bonuses')
 def bonuses():
-    """Маршрут для страницы бонусов и истории их начисления."""
     if 'user_fio' not in session:
         return redirect(url_for('login'))
 
     user_fio = session.get('user_fio').split()[0]
     
-    # ФИКЦИВНЫЕ ДАННЫЕ ДЛЯ БОНУСОВ
+    # ФИКЦИВНЫЕ ДАННЫЕ
     bonus_balance = 7350
     
     bonus_history = [
@@ -339,7 +344,6 @@ def bonuses():
 
 @app.route('/analytics')
 def analytics():
-    """Заглушка для страницы аналитики."""
     if 'user_fio' not in session:
         return redirect(url_for('login'))
 
@@ -351,7 +355,6 @@ def analytics():
 
 @app.route('/logout')
 def logout():
-    """Очистка сессии и выход."""
     session.pop('user_fio', None)
     session.pop('balance_gamur', None)
     return redirect(url_for('login'))
@@ -359,5 +362,4 @@ def logout():
 # --- 3. Запуск (В самом низу, только для локального теста) ---
 
 if __name__ == '__main__':
-    # Если запускаем локально, запускаем сервер Flask
     app.run(debug=True)
