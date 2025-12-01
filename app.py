@@ -1,41 +1,21 @@
-from flask import Flask, render_template, request, redirect, url_for, session, g
+from flask import Flask, render_template, request, redirect, url_for, session
 import os
 import psycopg2 
 import psycopg2.extras 
 from dotenv import load_dotenv 
 
-# --- 1. Конфигурация и Инициализация Flask ---
+# --- 1. Конфигурация и Функции Базы Данных ---
 
-# Загрузка переменных окружения (для локального запуска)
 load_dotenv() 
 
 DATABASE_URL = os.environ.get('DATABASE_URL') 
 if not DATABASE_URL:
-    print("ВНИМАНИЕ: Переменная DATABASE_URL не найдена. Установите ее в настройках Render.")
-
-# Инициализация Flask ДО любой функции, использующей @app
-template_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), 'templates'))
-app = Flask(__name__, template_folder=template_dir) 
-app.secret_key = os.environ.get('SECRET_KEY', 'default_secret_key_v3')
-
-# --- 2. Функции Базы Данных ---
+    print("Ошибка: Переменная DATABASE_URL не найдена. Установите ее в настройках Render.")
 
 def get_db_connection():
-    """Устанавливает соединение с БД PostgreSQL и сохраняет его в g."""
-    if 'db' not in g:
-        # Убедитесь, что DATABASE_URL существует перед подключением
-        if not DATABASE_URL:
-             raise Exception("DATABASE_URL не установлен.")
-             
-        g.db = psycopg2.connect(DATABASE_URL)
-    return g.db
-
-@app.teardown_appcontext
-def close_db_connection(exception):
-    """Закрывает соединение с БД по завершении запроса."""
-    db = g.pop('db', None)
-    if db is not None:
-        db.close()
+    """Устанавливает соединение с БД PostgreSQL."""
+    conn = psycopg2.connect(DATABASE_URL)
+    return conn
 
 def initialize_db():
     """Создает таблицы users и transactions."""
@@ -44,17 +24,16 @@ def initialize_db():
         conn = get_db_connection()
         cursor = conn.cursor()
         
-        # Создание таблицы users
+        # Убедитесь, что 'balance_gamur' имеет тип REAL (число с плавающей точкой)
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS users (
                 id SERIAL PRIMARY KEY,
-                fio TEXT NOT NULL UNIQUE,
+                fio TEXT NOT NULL,
                 password TEXT NOT NULL,
                 balance_gamur REAL DEFAULT 0.00
             )
         """)
 
-        # Создание таблицы transactions
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS transactions (
                 id SERIAL PRIMARY KEY,
@@ -67,20 +46,22 @@ def initialize_db():
         
         conn.commit()
     except Exception as e:
-        # Эта ошибка будет видна при первом запуске, если БД недоступна
         print(f"Ошибка инициализации БД: {e}")
     finally:
-        # conn.close() не требуется здесь, если используем g, но оставим для initialize_db
-        pass 
+        if conn:
+            conn.close()
+
+template_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), 'templates'))
+app = Flask(__name__, template_folder=template_dir) 
+app.secret_key = 'super_secret_key_lamor_bank_v2' 
 
 with app.app_context():
     initialize_db()
 
-# --- 3. Маршруты (Логика приложения) ---
+# --- 2. Маршруты (Логика приложения) ---
 
 @app.route('/')
 def index():
-    """Перенаправляет на дашборд, если авторизован, иначе на приветствие/регистрацию."""
     if 'user_fio' in session:
         return redirect(url_for('dashboard'))
 
@@ -88,6 +69,7 @@ def index():
     cursor = conn.cursor()
     cursor.execute("SELECT COUNT(*) FROM users")
     user_count = cursor.fetchone()[0]
+    conn.close()
 
     if user_count == 0:
         return redirect(url_for('register'))
@@ -104,18 +86,18 @@ def welcome():
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
-    """Обработка регистрации нового пользователя и начального баланса."""
     error = None
     if request.method == 'POST':
-        fio = request.form['fio'].strip()
+        fio = request.form['fio']
         password = request.form['password']
-        balance_str = request.form['balance'].strip()
+        balance_str = request.form['balance']
         
         if not all([fio, password, balance_str]):
             error = "Пожалуйста, заполните все поля."
             return render_template('register.html', error=error)
         
         try:
+            # 1. ПРЕОБРАЗОВАНИЕ В ЧИСЛО
             balance = float(balance_str) 
             if balance < 0:
                 error = "Начальный баланс не может быть отрицательным."
@@ -127,33 +109,26 @@ def register():
         conn = get_db_connection()
         cursor = conn.cursor()
         
-        try:
-            # СОХРАНЕНИЕ БАЛАНСА В БД
-            cursor.execute(
-                "INSERT INTO users (fio, password, balance_gamur) VALUES (%s, %s, %s)",
-                (fio, password, balance)
-            )
-            conn.commit()
-        except psycopg2.errors.UniqueViolation:
-            error = "Пользователь с таким Ф.И.О. уже существует."
-            conn.rollback()
-            return render_template('register.html', error=error)
-        except Exception as e:
-            error = f"Ошибка БД при регистрации: {e}"
-            conn.rollback()
-            return render_template('register.html', error=error)
+        # 2. СОХРАНЕНИЕ БАЛАНСА В БД
+        cursor.execute(
+            "INSERT INTO users (fio, password, balance_gamur) VALUES (%s, %s, %s)",
+            (fio, password, balance)
+        )
+        conn.commit()
+        conn.close()
         
-        # УСТАНОВКА СЕССИИ
+        # 3. УСТАНОВКА СЕССИИ
         session['user_fio'] = fio
         session['balance_gamur'] = balance
         return redirect(url_for('dashboard'))
 
+    # Если 'register.html' не расширяет 'base.html', вы увидите черный экран.
+    # Это было исправлено в register.html
     return render_template('register.html', error=error)
 
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    """Обработка входа пользователя."""
     error = None
     if request.method == 'POST':
         password = request.form['password']
@@ -165,6 +140,7 @@ def login():
             "SELECT fio, balance_gamur FROM users WHERE password = %s", (password,)
         )
         user = cursor.fetchone()
+        conn.close()
 
         if user:
             session['user_fio'] = user['fio']
@@ -179,7 +155,6 @@ def login():
 
 @app.route('/dashboard')
 def dashboard():
-    """Главная страница: отображение баланса и транзакций."""
     if 'user_fio' not in session:
         return redirect(url_for('login'))
         
@@ -188,15 +163,15 @@ def dashboard():
     conn = get_db_connection()
     cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
     
-    # ЧТЕНИЕ БАЛАНСА ИЗ БД (всегда актуальное значение)
+    # 1. ЧТЕНИЕ БАЛАНСА ИЗ БД (всегда надежнее, чем сессия)
     cursor.execute(
         "SELECT id, balance_gamur FROM users WHERE fio = %s", (user_fio,)
     )
     user_data = cursor.fetchone()
     
     balance = user_data['balance_gamur'] if user_data and user_data['balance_gamur'] is not None else 0.00
-    session['balance_gamur'] = balance # Обновляем сессию
-    
+    session['balance_gamur'] = balance # Обновляем сессию актуальным значением
+
     transactions = []
     
     if user_data:
@@ -216,6 +191,9 @@ def dashboard():
             for row in transactions_raw
         ]
 
+    conn.close()
+
+    # ВАЖНО: 'fio' должен быть в глобальных переменных для base.html
     return render_template('dashboard.html', 
                            fio=user_fio.split()[0], 
                            balance=balance, 
@@ -235,6 +213,7 @@ def accounts():
         "SELECT balance_gamur FROM users WHERE fio = %s", (user_fio,)
     )
     user_data = cursor.fetchone()
+    conn.close()
     
     current_balance = user_data['balance_gamur'] if user_data else 0.00
     
@@ -251,7 +230,6 @@ def accounts():
 
 @app.route('/deposit', methods=['GET', 'POST'])
 def deposit():
-    """Обработка пополнения счета."""
     if 'user_fio' not in session:
         return redirect(url_for('login'))
 
@@ -261,7 +239,6 @@ def deposit():
     
     conn = get_db_connection()
     cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
-    
     cursor.execute(
         "SELECT id, balance_gamur FROM users WHERE fio = %s", (user_fio,)
     )
@@ -300,10 +277,8 @@ def deposit():
                 
         except ValueError:
             error = "Сумма пополнения должна быть числом."
-        except Exception as e:
-            error = f"Ошибка при пополнении: {e}"
-            conn.rollback() # Откат в случае ошибки
     
+    conn.close()
     return render_template('deposit.html', 
                            fio=user_fio.split()[0], 
                            balance=current_balance,
@@ -313,7 +288,6 @@ def deposit():
 
 @app.route('/payments', methods=['GET', 'POST'])
 def payments():
-    """Обработка платежей."""
     if 'user_fio' not in session:
         return redirect(url_for('login'))
 
@@ -321,12 +295,13 @@ def payments():
     message = None
     error = None
     
-    conn = get_db_connection()
-    cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
-    cursor.execute(
+    conn_check = get_db_connection()
+    cursor_check = conn_check.cursor(cursor_factory=psycopg2.extras.DictCursor)
+    cursor_check.execute(
         "SELECT id, balance_gamur FROM users WHERE fio = %s", (user_fio,)
     )
-    user_data = cursor.fetchone()
+    user_data = cursor_check.fetchone()
+    conn_check.close()
     
     current_balance = user_data['balance_gamur'] if user_data else 0.00
     session['balance_gamur'] = current_balance 
@@ -344,8 +319,14 @@ def payments():
                 error = "Недостаточно средств на счете Гамур для этого платежа."
             
             if not error:
+                conn = get_db_connection()
+                cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
                 
-                user = user_data
+                cursor.execute(
+                    "SELECT id, balance_gamur FROM users WHERE fio = %s", (user_fio,)
+                )
+                    
+                user = cursor.fetchone()
                 
                 if user:
                     new_balance = user['balance_gamur'] - amount
@@ -365,6 +346,7 @@ def payments():
                     )
                     
                     conn.commit()
+                    conn.close()
                     
                     session['balance_gamur'] = new_balance
                     current_balance = new_balance
@@ -374,9 +356,6 @@ def payments():
 
         except ValueError:
             error = "Сумма платежа должна быть числом."
-        except Exception as e:
-            error = f"Ошибка при платеже: {e}"
-            conn.rollback()
         
     return render_template('payments.html', 
                            fio=user_fio.split()[0], 
@@ -396,12 +375,9 @@ def transfer():
     error = None
 
     if request.method == 'POST':
-        recipient_fio = request.form['recipient_fio'].strip()
-        amount_str = request.form['amount'].strip()
+        recipient_fio = request.form['recipient_fio']
+        amount_str = request.form['amount']
         
-        conn = get_db_connection()
-        cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
-
         try:
             amount = float(amount_str)
             if amount <= 0:
@@ -410,6 +386,8 @@ def transfer():
                 error = "Нельзя перевести деньги самому себе."
             
             if not error:
+                conn = get_db_connection()
+                cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
                 
                 # 1. Находим отправителя
                 cursor.execute(
@@ -460,18 +438,16 @@ def transfer():
                     current_balance = new_sender_balance
                     session['balance_gamur'] = current_balance
 
+                conn.close()
+
         except ValueError:
             error = "Сумма перевода должна быть числом."
-        except Exception as e:
-            error = f"Ошибка при переводе: {e}"
-            conn.rollback()
         
     return render_template('transfer.html', 
                            fio=user_fio.split()[0], 
                            balance=current_balance,
                            message=message, 
                            error=error)
-
 
 @app.route('/bonuses')
 def bonuses():

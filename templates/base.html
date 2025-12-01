@@ -77,6 +77,7 @@
             display: flex;
             flex-direction: column;
             align-items: center;
+            /* Сайдбар должен быть фиксированным, если вы его используете */
             position: fixed; 
             height: 100%;
             z-index: 10;
@@ -97,6 +98,7 @@
         .main-content {
             flex-grow: 1;
             padding: 20px 40px;
+            /* Отступ слева только если сайдбар отображается */
             margin-left: 0; 
             width: 100%;
         }
@@ -138,11 +140,11 @@
             <a href="{{ url_for('logout') }}" style="margin-top: auto; color: var(--red-accent);">🚪 Выход</a>
         </div>
         <div class="main-content" style="margin-left: var(--sidebar-width);">
-             {% block content %}{% endblock %} 
+             {% block content %}{% endblock %}
         </div>
     {% else %}
         <div class="auth-layout">
-             {% block content %}{% endblock %} 
+             {% block content %}{% endblock %}
         </div>
     {% endif %}
 
