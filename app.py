@@ -12,20 +12,19 @@ DATABASE_URL = os.environ.get('DATABASE_URL')
 if not DATABASE_URL:
     print("Ошибка: Переменная DATABASE_URL не найдена. Установите ее в настройках Render.")
 
-# 1.1. ФУНКЦИИ БАЗЫ ДАННЫХ
 def get_db_connection():
     """Устанавливает соединение с БД PostgreSQL."""
     conn = psycopg2.connect(DATABASE_URL)
     return conn
 
 def initialize_db():
-    """Создает таблицы users и transactions в PostgreSQL, если они не существуют."""
+    """Создает таблицы users и transactions."""
     conn = None
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
         
-        # 1. Таблица Пользователей (users)
+        # Убедитесь, что 'balance_gamur' имеет тип REAL (число с плавающей точкой)
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS users (
                 id SERIAL PRIMARY KEY,
@@ -35,7 +34,6 @@ def initialize_db():
             )
         """)
 
-        # 2. НОВАЯ Таблица Транзакций (transactions)
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS transactions (
                 id SERIAL PRIMARY KEY,
@@ -53,14 +51,12 @@ def initialize_db():
         if conn:
             conn.close()
 
-# 1.2. ИНИЦИАЛИЗАЦИЯ FLASK
 template_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), 'templates'))
 app = Flask(__name__, template_folder=template_dir) 
 app.secret_key = 'super_secret_key_lamor_bank_v2' 
 
 with app.app_context():
     initialize_db()
-
 
 # --- 2. Маршруты (Логика приложения) ---
 
@@ -101,7 +97,8 @@ def register():
             return render_template('register.html', error=error)
         
         try:
-            balance = float(balance_str)
+            # 1. ПРЕОБРАЗОВАНИЕ В ЧИСЛО
+            balance = float(balance_str) 
             if balance < 0:
                 error = "Начальный баланс не может быть отрицательным."
                 return render_template('register.html', error=error)
@@ -111,6 +108,8 @@ def register():
 
         conn = get_db_connection()
         cursor = conn.cursor()
+        
+        # 2. СОХРАНЕНИЕ БАЛАНСА В БД
         cursor.execute(
             "INSERT INTO users (fio, password, balance_gamur) VALUES (%s, %s, %s)",
             (fio, password, balance)
@@ -118,10 +117,13 @@ def register():
         conn.commit()
         conn.close()
         
+        # 3. УСТАНОВКА СЕССИИ
         session['user_fio'] = fio
         session['balance_gamur'] = balance
         return redirect(url_for('dashboard'))
 
+    # Если 'register.html' не расширяет 'base.html', вы увидите черный экран.
+    # Это было исправлено в register.html
     return render_template('register.html', error=error)
 
 
@@ -161,21 +163,20 @@ def dashboard():
     conn = get_db_connection()
     cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
     
-    # Получение баланса
+    # 1. ЧТЕНИЕ БАЛАНСА ИЗ БД (всегда надежнее, чем сессия)
     cursor.execute(
         "SELECT id, balance_gamur FROM users WHERE fio = %s", (user_fio,)
     )
     user_data = cursor.fetchone()
     
-    balance = user_data['balance_gamur'] if user_data else 0.00
-    session['balance_gamur'] = balance
+    balance = user_data['balance_gamur'] if user_data and user_data['balance_gamur'] is not None else 0.00
+    session['balance_gamur'] = balance # Обновляем сессию актуальным значением
 
     transactions = []
     
     if user_data:
         user_id = user_data['id']
         
-        # НОВАЯ ЛОГИКА: Извлечение реальных транзакций из БД
         cursor.execute("""
             SELECT description, amount 
             FROM transactions 
@@ -185,7 +186,6 @@ def dashboard():
         """, (user_id,))
         transactions_raw = cursor.fetchall()
         
-        # Преобразование данных для шаблона
         transactions = [
             {"desc": row['description'], "amount": row['amount']} 
             for row in transactions_raw
@@ -193,6 +193,7 @@ def dashboard():
 
     conn.close()
 
+    # ВАЖНО: 'fio' должен быть в глобальных переменных для base.html
     return render_template('dashboard.html', 
                            fio=user_fio.split()[0], 
                            balance=balance, 
@@ -324,6 +325,7 @@ def payments():
                 cursor.execute(
                     "SELECT id, balance_gamur FROM users WHERE fio = %s", (user_fio,)
                 )
+                    
                 user = cursor.fetchone()
                 
                 if user:
@@ -335,7 +337,7 @@ def payments():
                         (new_balance, user['id'])
                     )
                     
-                    # 2. ЗАПИСЬ ТРАНЗАКЦИИ (с отрицательным значением)
+                    # 2. ЗАПИСЬ ТРАНЗАКЦИИ
                     transaction_amount = -amount
                     description = f"Оплата мобильной связи ({phone_number})"
                     cursor.execute(
@@ -484,8 +486,6 @@ def logout():
     session.pop('user_fio', None)
     session.pop('balance_gamur', None)
     return redirect(url_for('login'))
-
-# --- 3. Запуск (В самом низу, только для локального теста) ---
 
 if __name__ == '__main__':
     app.run(debug=True)

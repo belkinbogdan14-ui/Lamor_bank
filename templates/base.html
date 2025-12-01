@@ -23,14 +23,22 @@
             display: flex;
             min-height: 100vh;
         }
+        
+        /* === Стили для страниц авторизации/регистрации (полный экран) === */
+        .auth-layout {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            width: 100%;
+        }
         .form-container {
             background-color: var(--card-bg);
             padding: 40px;
             border-radius: 8px;
             max-width: 400px;
-            margin: 100px auto;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
         }
-        input[type="text"], input[type="password"] {
+        input[type="text"], input[type="password"], input[type="number"] {
             width: calc(100% - 20px);
             padding: 10px;
             margin: 10px 0;
@@ -59,9 +67,86 @@
             text-align: center;
             margin-bottom: 10px;
         }
+        
+        /* === Стили для основного контента (Сайдбар и Внутренние страницы) === */
+        .sidebar {
+            width: var(--sidebar-width);
+            background-color: #222222;
+            padding-top: 20px;
+            box-shadow: 2px 0 5px rgba(0,0,0,0.5);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            /* Сайдбар должен быть фиксированным, если вы его используете */
+            position: fixed; 
+            height: 100%;
+            z-index: 10;
+        }
+        .sidebar a {
+            color: var(--text-color);
+            text-decoration: none;
+            padding: 12px 10px;
+            display: block;
+            width: 100%;
+            text-align: left;
+            padding-left: 20px;
+            transition: background-color 0.2s;
+        }
+        .sidebar a:hover, .sidebar a.active {
+            background-color: var(--card-bg);
+        }
+        .main-content {
+            flex-grow: 1;
+            padding: 20px 40px;
+            /* Отступ слева только если сайдбар отображается */
+            margin-left: 0; 
+            width: 100%;
+        }
+        
+        /* Стили, общие для всех внутренних страниц */
+        .card {
+            background-color: var(--card-bg);
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+        }
+        .btn-op {
+            display: inline-block; 
+            background-color: var(--accent-color);
+            color: white;
+            padding: 8px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            margin-right: 10px;
+            text-decoration: none; 
+            transition: background-color 0.3s;
+        }
+        
     </style>
 </head>
 <body>
-    {% block content %}{% endblock %}
+    {% if 'user_fio' in session and request.endpoint not in ['login', 'register', 'welcome'] %}
+        <div class="sidebar">
+            <div style="height: 50px;"></div>
+            <a href="{{ url_for('dashboard') }}" class="{% if request.endpoint == 'dashboard' %}active{% endif %}">🏠 Главная</a>
+            <a href="{{ url_for('accounts') }}" class="{% if request.endpoint == 'accounts' %}active{% endif %}">💳 Счета</a>
+            <a href="{{ url_for('payments') }}" class="{% if request.endpoint == 'payments' %}active{% endif %}">💸 Платежи</a>
+            <a href="{{ url_for('transfer') }}" class="{% if request.endpoint == 'transfer' %}active{% endif %}">🔄 Переводы</a>
+            <a href="{{ url_for('bonuses') }}">🌟 Бонусы</a> 
+            <a href="{{ url_for('analytics') }}">📈 Аналитика</a> 
+            <a href="{{ url_for('logout') }}" style="margin-top: auto; color: var(--red-accent);">🚪 Выход</a>
+        </div>
+        <div class="main-content" style="margin-left: var(--sidebar-width);">
+             {% block content %}{% endblock %}
+        </div>
+    {% else %}
+        <div class="auth-layout">
+             {% block content %}{% endblock %}
+        </div>
+    {% endif %}
+
 </body>
 </html>
