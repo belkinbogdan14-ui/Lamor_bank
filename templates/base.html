@@ -3,72 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Lamor Bank - {% block title %}Ваш банк{% endblock %}</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <title>Lamor Bank - {% block title %}Тест{% endblock %}</title>
 </head>
 <body>
-
-    {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-            <div class="flashes">
-                {% for category, message in messages %}
-                    <div class="flash-message flash-{{ category }}">{{ message }}</div>
-                {% endfor %}
-            </div>
-        {% endif %}
-    {% endwith %}
-
-    {% if 'user_fio' in session and request.endpoint not in ['login', 'register', 'welcome'] %}
-        <div class="sidebar">
-            <div class="logo">
-                <i class="fa-solid fa-gem"></i> Lamor Bank
-            </div>
-            <nav class="menu">
-                <a href="{{ url_for('dashboard') }}" class="{% if request.endpoint == 'dashboard' %}active{% endif %}">
-                    <i class="fa-solid fa-house"></i> Главная
-                </a>
-                <a href="{{ url_for('accounts') }}" class="{% if request.endpoint == 'accounts' %}active{% endif %}">
-                    <i class="fa-solid fa-wallet"></i> Счета
-                </a>
-                <a href="{{ url_for('deposit') }}" class="{% if request.endpoint == 'deposit' %}active{% endif %}">
-                    <i class="fa-solid fa-money-check-dollar"></i> Пополнение
-                </a>
-                <a href="{{ url_for('payments') }}" class="{% if request.endpoint == 'payments' %}active{% endif %}">
-                    <i class="fa-solid fa-arrow-up-right-from-square"></i> Платежи
-                </a>
-                <a href="{{ url_for('transfer') }}" class="{% if request.endpoint == 'transfer' %}active{% endif %}">
-                    <i class="fa-solid fa-exchange-alt"></i> Переводы
-                </a>
-                <a href="{{ url_for('bonuses') }}" class="{% if request.endpoint == 'bonuses' %}active{% endif %}">
-                    <i class="fa-solid fa-star"></i> Бонусы
-                </a>
-                 <a href="{{ url_for('analytics') }}" class="{% if request.endpoint == 'analytics' %}active{% endif %}">
-                    <i class="fa-solid fa-chart-pie"></i> Аналитика
-                </a>
-            </nav>
-            <div class="profile-area">
-                <div class="user-info">
-                    <span class="user-name">{{ session.get('user_fio', 'Клиент').split()[0] }}</span>
-                    <span class="balance-gamur">{{ "{:,.2f} ГМР".format(session.get('balance_gamur', 0.00)|float) }}</span>
-                </div>
-                <a href="{{ url_for('logout') }}" class="logout-btn">
-                    <i class="fa-solid fa-sign-out-alt"></i> Выход
-                </a>
-            </div>
-        </div>
-
-        <div class="main-content" style="margin-left: 250px;">
-             {% block content %}{% endblock %}
-        </div>
-
-    {% else %}
-        <div class="auth-layout">
-             {% block content %}{% endblock %}
-        </div>
-
-    {% endif %}
-
-    <script src="{{ url_for('static', filename='script.js') }}"></script>
+    <h1>Минимальный тест. Если вы видите это, base.html работает.</h1>
+    <div class="test-content">
+        {% block content %}{% endblock %}
+    </div>
 </body>
 </html>
